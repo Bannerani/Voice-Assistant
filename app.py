@@ -1,167 +1,140 @@
-import os
 import pickle
-import numpy as np
+import os
 import streamlit as st
+from datetime import datetime
 
-# Page Configuration
+# Page configuration
 st.set_page_config(
-    page_title="Performance Predictor",
-    page_icon="📊",
-    layout="wide"
+    page_title="Voice Assistant Dashboard",
+    page_icon="🎙️",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Custom CSS for shadow effects and card styling
+# Custom CSS for attractive effects and dark mode styling
 st.markdown("""
     <style>
-    /* Global styles */
     .main {
-        background-color: #f8fafc;
+        background-color: #0e1117;
+        color: #ffffff;
     }
-    
-    /* Card Container with Shadow */
-    .custom-card {
-        background-color: #ffffff;
-        padding: 24px;
-        border-radius: 16px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08), 0 4px 10px rgba(0, 0, 0, 0.04);
-        margin-bottom: 20px;
-        border: 1px solid #edf2f7;
-    }
-
-    /* Header styling */
-    .title-text {
-        color: #2d3748;
-        font-weight: 700;
-        text-align: center;
-        margin-bottom: 8px;
-    }
-    
-    .subtitle-text {
-        color: #718096;
-        text-align: center;
-        margin-bottom: 24px;
-    }
-
-    /* Prediction Result Box */
-    .result-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+    .stMetric {
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
         padding: 20px;
         border-radius: 12px;
-        text-align: center;
-        box-shadow: 0 8px 20px rgba(118, 75, 162, 0.3);
-        margin-top: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        border: 1px solid #374151;
     }
-
-    /* Customizing Streamlit buttons */
-    .stButton>button {
-        width: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        box-shadow: 0 4px 12px rgba(118, 75, 162, 0.25);
-        transition: all 0.3s ease;
+    .command-card {
+        background: #1f2937;
+        padding: 15px 20px;
+        border-radius: 10px;
+        margin-bottom: 12px;
+        border-left: 4px solid #3b82f6;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        transition: transform 0.2s ease;
     }
-
-    .stButton>button:hover {
-        opacity: 0.95;
-        box-shadow: 0 6px 16px rgba(118, 75, 162, 0.35);
+    .command-card:hover {
+        transform: translateY(-2px);
+    }
+    .title-glow {
+        text-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Load the SVR Model
-MODEL_PATH = "svm.pkl"
+DATA_FILE = "assistant_state.pkl"
 
-@st.cache_resource
-def load_model():
-    if os.path.exists(MODEL_PATH):
-        with open(MODEL_PATH, "rb") as f:
-            return pickle.load(f)
-    return None
+def load_data():
+    """Load assistant state from pickle file or initialize default values."""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "rb") as f:
+                return pickle.load(f)
+        except Exception:
+            pass
+    # Default fallback state matching your pickle schema
+    return {
+        "user_name": None,
+        "history": [
+            {
+                "time": "2026-10-11 07:41:16",
+                "command": "open YouTube",
+                "response": "Opening YouTube"
+            }
+        ],
+        "total_commands": 1
+    }
 
-model = load_model()
+def save_data(data):
+    """Save assistant state back to pickle file."""
+    with open(DATA_FILE, "wb") as f:
+        pickle.dump(data, f)
 
-# Categorical options map
-CATEGORICAL_OPTIONS = {
-    "gender": ["Male", "Female", "Other"],
-    "course": ["Computer Science", "Engineering", "Business", "Arts", "Medicine", "Law"],
-    "internet_access": ["Yes", "No"],
-    "sleep_quality": ["Poor", "Average", "Good", "Excellent"],
-    "study_method": ["Self Study", "Group Study", "Online Lectures", "Tutor"],
-    "exam_difficulty": ["Easy", "Medium", "Hard"]
-}
+# Initialize state
+state = load_data()
 
-# Encoding maps for ordinal/categorical fields
-ENCODING_MAPS = {
-    "gender": {"Male": 0, "Female": 1, "Other": 2},
-    "course": {"Computer Science": 0, "Engineering": 1, "Business": 2, "Arts": 3, "Medicine": 4, "Law": 5},
-    "internet_access": {"No": 0, "Yes": 1},
-    "sleep_quality": {"Poor": 0, "Average": 1, "Good": 2, "Excellent": 3},
-    "study_method": {"Self Study": 0, "Group Study": 1, "Online Lectures": 2, "Tutor": 3},
-    "exam_difficulty": {"Easy": 0, "Medium": 1, "Hard": 2}
-}
+# App Header
+st.markdown("<h1 class='title-glow' style='text-align: center;'>🎙️ Voice Assistant Control Panel</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #9ca3af;'>Interactive Dashboard for your Pickled Assistant Session State</p>", unsafe_allow_html=True)
+st.markdown("---")
 
-# Header Section
-st.markdown("<h1 class='title-text'>Performance Predictor</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle-text'>Enter student details below to generate predictions using the SVR model.</p>", unsafe_allow_html=True)
+# Sidebar Controls
+st.sidebar.header("⚙️ Assistant Configuration")
+user_name_input = st.sidebar.text_input("User Name", value=state.get("user_name") or "")
+if user_name_input != (state.get("user_name") or ""):
+    state["user_name"] = user_name_input if user_name_input else None
+    save_data(state)
+    st.sidebar.success("User name updated!")
 
-# Main Form Container
-with st.container():
-    st.markdown("<div class='custom-card'>", unsafe_allow_html=True)
-    
-    with st.form("prediction_form"):
-        col1, col2 = st.columns(2)
+if st.sidebar.button("🔄 Reset State to Default"):
+    state = {
+        "user_name": None,
+        "history": [{"time": "2026-10-11 07:41:16", "command": "open YouTube", "response": "Opening YouTube"}],
+        "total_commands": 1
+    }
+    save_data(state)
+    st.rerun()
 
-        with col1:
-            age = st.number_input("Age", min_value=10, max_value=100, value=20)
-            gender = st.selectbox("Gender", CATEGORICAL_OPTIONS["gender"])
-            course = st.selectbox("Course", CATEGORICAL_OPTIONS["course"])
-            study_hours = st.number_input("Study Hours (per week)", min_value=0.0, max_value=168.0, value=5.5, step=0.5)
-            class_attendance = st.number_input("Class Attendance (%)", min_value=0.0, max_value=100.0, value=85.0, step=1.0)
-            internet_access = st.selectbox("Internet Access", CATEGORICAL_OPTIONS["internet_access"])
+# Main Dashboard Metrics Cards
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric(label="Total Commands Executed", value=state.get("total_commands", 0))
+with col2:
+    st.metric(label="Active User", value=state.get("user_name") if state.get("user_name") else "Guest (None)")
+with col3:
+    st.metric(label="Logged Interactions", value=len(state.get("history", [])))
 
-        with col2:
-            sleep_hours = st.number_input("Sleep Hours (per day)", min_value=0.0, max_value=24.0, value=7.0, step=0.5)
-            sleep_quality = st.selectbox("Sleep Quality", CATEGORICAL_OPTIONS["sleep_quality"])
-            study_method = st.selectbox("Study Method", CATEGORICAL_OPTIONS["study_method"])
-            facility_rating = st.slider("Facility Rating (1-5)", min_value=1.0, max_value=5.0, value=4.0, step=0.1)
-            exam_difficulty = st.selectbox("Exam Difficulty", CATEGORICAL_OPTIONS["exam_difficulty"])
-
-        submit_button = st.form_submit_button("Generate Prediction")
+st.markdown("### 💬 Simulate Voice Command")
+with st.form("command_form", clear_on_submit=True):
+    new_command = st.text_input("Enter a command (e.g., 'play music', 'check weather'):")
+    submitted = st.form_submit_button("Run Command")
+    if submitted and new_command:
+        response_text = f"Executed action for: {new_command}"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-    st.markdown("</div>", unsafe_allow_html=True)
+        # Append to history & increment counter
+        state["history"].append({
+            "time": timestamp,
+            "command": new_command,
+            "response": response_text
+        })
+        state["total_commands"] += 1
+        save_data(state)
+        st.success(f"Response: {response_text}")
+        st.rerun()
 
-# Prediction Logic & Output Display
-if submit_button:
-    if model is None:
-        st.error("Model file (`svm.pkl`) not found. Please verify the file path.")
-    else:
-        # Construct feature vector matching model inputs
-        features = [
-            float(age),
-            ENCODING_MAPS["gender"][gender],
-            ENCODING_MAPS["course"][course],
-            float(study_hours),
-            float(class_attendance),
-            ENCODING_MAPS["internet_access"][internet_access],
-            float(sleep_hours),
-            ENCODING_MAPS["sleep_quality"][sleep_quality],
-            ENCODING_MAPS["study_method"][study_method],
-            float(facility_rating),
-            ENCODING_MAPS["exam_difficulty"][exam_difficulty]
-        ]
+st.markdown("---")
+st.markdown("### 📜 Command History Log")
 
-        prediction = model.predict(np.array([features]))[0]
-        formatted_prediction = round(float(prediction), 2)
-
-        # Display Result with CSS Shadow Effects
+if not state.get("history"):
+    st.info("No history logs found.")
+else:
+    for item in reversed(state["history"]):
         st.markdown(f"""
-            <div class='result-card'>
-                <h3 style='margin:0; font-size: 1.2rem; opacity: 0.9;'>Predicted Score / Value</h3>
-                <h1 style='margin:10px 0 0 0; font-size: 2.8rem;'>{formatted_prediction}</h1>
+            <div class="command-card">
+                <small style="color: #9ca3af;">🕒 {item.get('time')}</small><br>
+                <b>Command:</b> {item.get('command')}<br>
+                <b>Response:</b> <span style="color: #60a5fa;">{item.get('response')}</span>
             </div>
         """, unsafe_allow_html=True)
